@@ -1,0 +1,5 @@
+.terragrunt-cache/
+.terraform.lock.hcl
+.claude
+.DS_Store
+.env
