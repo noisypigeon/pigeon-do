@@ -3,4 +3,5 @@ module "terraform_state" {
   namespace = "pigeon-dev"
   name      = "terraform-state"
   project   = local.management_project
+  region    = local.primary_region
 }

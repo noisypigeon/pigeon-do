@@ -65,6 +65,16 @@ locals {
 EOF
 }
 
+generate "bucket_names" {
+  path      = "bucket_names_generated.tf"
+  if_exists = "overwrite"
+  contents  = <<EOF
+locals {
+  rolodex_email_bucket_name         = "${get_env("ROLODEX_EMAIL_BUCKET_NAME", lookup(local.secrets, "ROLODEX_EMAIL_BUCKET_NAME", ""))}"
+}
+EOF
+}
+
 generate "provider" {
   path      = "provider_generated.tf"
   if_exists = "overwrite"
