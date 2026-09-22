@@ -3,5 +3,5 @@ locals {
   # per docs/adr/0001-terragrunt-terraform-bootstrap.md.
 
   # Digital Ocean Projects
-  management_project            = "Management"
+  management_project = "Management"
 }

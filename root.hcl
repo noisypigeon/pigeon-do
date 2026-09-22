@@ -54,6 +54,17 @@ locals {
 EOF
 }
 
+generate "cloudflare_ids" {
+  path      = "cloudflare_ids_generated.tf"
+  if_exists = "overwrite"
+  contents  = <<EOF
+locals {
+  cloudflare_account_id         = "${get_env("CLOUDFLARE_ACCOUNT_ID", lookup(local.secrets, "CLOUDFLARE_ACCOUNT_ID", ""))}"
+  cloudflare_pigeon_dev_zone_id = "${get_env("CLOUDFLARE_PIGEON_DEV_ZONE_ID", lookup(local.secrets, "CLOUDFLARE_PIGEON_DEV_ZONE_ID", ""))}"
+}
+EOF
+}
+
 generate "provider" {
   path      = "provider_generated.tf"
   if_exists = "overwrite"
@@ -98,6 +109,7 @@ remote_state {
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
+    skip_requesting_account_id  = true
 
     access_key = get_env("DIGITALOCEAN_SPACES_ACCESS_ID", lookup(local.secrets, "DIGITALOCEAN_SPACES_ACCESS_ID", ""))
     secret_key = get_env("DIGITALOCEAN_SPACES_SECRET_KEY", lookup(local.secrets, "DIGITALOCEAN_SPACES_SECRET_KEY", ""))
