@@ -27,6 +27,11 @@ locals {
   ] : trimspace(pair[0]) => trimspace(pair[1]) }
 
   secrets = local.root_secrets
+
+  # Local filesystem path to the pigeon-tf modules checkout (see
+  # docs/adr/0002-pigeon-tf-scaffold.md). Override via PIGEON_TF_PATH;
+  # default assumes pigeon-tf is cloned as a sibling directory to this repo.
+  pigeon_tf_root = get_env("PIGEON_TF_PATH", "${dirname(get_repo_root())}/pigeon-tf")
 }
 
 generate "env_ancestors" {
@@ -37,6 +42,16 @@ generate "env_ancestors" {
     file(p)
     if fileexists(p) && abspath(p) != abspath("${get_repo_root()}/env.tf")
   ])
+}
+
+generate "pigeon_tf" {
+  path      = "pigeon_tf_generated.tf"
+  if_exists = "overwrite"
+  contents  = <<EOF
+locals {
+  pigeon_tf_root = "${local.pigeon_tf_root}"
+}
+EOF
 }
 
 generate "provider" {
