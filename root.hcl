@@ -28,6 +28,15 @@ locals {
 
   secrets = local.root_secrets
 
+  # Bucket-name secrets: any .env key prefixed BUCKET_NAME_ is exposed as a
+  # local named by stripping the prefix and appending _bucket_name, e.g.
+  # BUCKET_NAME_ROLODEX_EMAIL -> local.rolodex_email_bucket_name. See
+  # docs/adr/0006-automatic-bucket-name-locals.md.
+  bucket_name_secrets = {
+    for k, v in local.secrets : "${lower(trimprefix(k, "BUCKET_NAME_"))}_bucket_name" => get_env(k, v)
+    if startswith(k, "BUCKET_NAME_")
+  }
+
   # Local filesystem path to the pigeon-tf modules checkout (see
   # docs/adr/0002-pigeon-tf-scaffold.md). Override via PIGEON_TF_PATH;
   # default assumes pigeon-tf is cloned as a sibling directory to this repo.
@@ -70,8 +79,7 @@ generate "bucket_names" {
   if_exists = "overwrite"
   contents  = <<EOF
 locals {
-  rolodex_email_bucket_name         = "${get_env("ROLODEX_EMAIL_BUCKET_NAME", lookup(local.secrets, "ROLODEX_EMAIL_BUCKET_NAME", ""))}"
-  rolodex_poutine_2021_bucket_name  = "${get_env("ROLODEX_POUTINE_2021_BUCKET_NAME", lookup(local.secrets, "ROLODEX_POUTINE_2021_BUCKET_NAME", ""))}"
+${join("\n", [for k, v in local.bucket_name_secrets : "  ${k} = \"${v}\""])}
 }
 EOF
 }
