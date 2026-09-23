@@ -71,6 +71,7 @@ generate "bucket_names" {
   contents  = <<EOF
 locals {
   rolodex_email_bucket_name         = "${get_env("ROLODEX_EMAIL_BUCKET_NAME", lookup(local.secrets, "ROLODEX_EMAIL_BUCKET_NAME", ""))}"
+  rolodex_poutine_2021_bucket_name  = "${get_env("ROLODEX_POUTINE_2021_BUCKET_NAME", lookup(local.secrets, "ROLODEX_POUTINE_2021_BUCKET_NAME", ""))}"
 }
 EOF
 }
