@@ -3,7 +3,8 @@ locals {
   # per docs/adr/0001-terragrunt-terraform-bootstrap.md.
 
   # Digital Ocean Regions
-  primary_region = "tor1"
+  tor1_region = "tor1"
+  sfo3_region = "sfo3"
 
   # Digital Ocean Projects
   management_project = "Management"
