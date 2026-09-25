@@ -1,4 +1,4 @@
-resource "cloudflare_zone" "pigeon_dev" {
+resource "cloudflare_zone" "noisypigeon_com" {
   account = {
     id = local.cloudflare_account_id
   }

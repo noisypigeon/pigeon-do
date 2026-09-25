@@ -28,12 +28,37 @@ locals {
 
   secrets = local.root_secrets
 
-  # No BUCKET_NAME_*/CLOUDFLARE_* keys for this account yet — when this
-  # domain needs Cloudflare zone IDs or named buckets, add a
-  # generate "cloudflare_ids"/"bucket_names" block here following
-  # pigeon.dev/root.hcl's pattern (see docs/adr/0004, 0006, 0007). Not
-  # shared via common.hcl: those blocks depend on local.secrets, which is
-  # defined per-account in this same file.
+  # Bucket-name secrets: any .env key prefixed BUCKET_NAME_ is exposed as a
+  # local named by stripping the prefix and appending _bucket_name, e.g.
+  # BUCKET_NAME_ROLODEX_EMAIL -> local.rolodex_email_bucket_name. See
+  # docs/adr/0006-automatic-bucket-name-locals.md. Stays here (not in
+  # common.hcl) since it depends on local.secrets, defined above in this
+  # same file — see docs/adr/0007-multiple-root-directories.md.
+  bucket_name_secrets = {
+    for k, v in local.secrets : "${lower(trimprefix(k, "BUCKET_NAME_"))}_bucket_name" => get_env(k, v)
+    if startswith(k, "BUCKET_NAME_")
+  }
+}
+
+generate "cloudflare_ids" {
+  path      = "cloudflare_ids_generated.tf"
+  if_exists = "overwrite"
+  contents  = <<EOF
+locals {
+  cloudflare_account_id         = "${get_env("CLOUDFLARE_ACCOUNT_ID", lookup(local.secrets, "CLOUDFLARE_ACCOUNT_ID", ""))}"
+  cloudflare_noisypigeon_com_zone_id = "${get_env("CLOUDFLARE_NOISYPIGEON_COM_ZONE_ID", lookup(local.secrets, "CLOUDFLARE_NOISYPIGEON_COM_ZONE_ID", ""))}"
+}
+EOF
+}
+
+generate "bucket_names" {
+  path      = "bucket_names_generated.tf"
+  if_exists = "overwrite"
+  contents  = <<EOF
+locals {
+${join("\n", [for k, v in local.bucket_name_secrets : "  ${k} = \"${v}\""])}
+}
+EOF
 }
 
 generate "env_ancestors" {
