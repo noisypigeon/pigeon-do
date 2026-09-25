@@ -4,4 +4,4 @@
 *.tfstate*
 .claude
 .DS_Store
-.env
+*.env
