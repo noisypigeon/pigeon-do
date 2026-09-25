@@ -1,7 +1,7 @@
 generate "env" {
   path      = "env_generated.tf"
   if_exists = "overwrite"
-  contents  = file("${get_repo_root()}/env.tf")
+  contents  = file(find_in_parent_folders("env.tf"))
 }
 
 locals {
@@ -13,11 +13,11 @@ locals {
     "${dirname(dirname(dirname(dirname(dirname(get_terragrunt_dir())))))}/env.tf",
   ]
 
-  # Secrets: read from a repo-root ".env" (KEY=value, one per line, no
-  # quoting). This repo has a single DigitalOcean team/Cloudflare zone, so
-  # unlike topology-v1 there is no tree-level ".env" override chain — just
-  # the root file. Precedence, highest first: real shell env var > root .env.
-  root_env_path = "${get_repo_root()}/.env"
+  # Secrets: read from this root directory's own ".env" (KEY=value, one per
+  # line, no quoting) — one per DigitalOcean account/domain, see
+  # docs/adr/0007-multiple-root-directories.md. Precedence, highest first:
+  # real shell env var > this root's .env.
+  root_env_path = find_in_parent_folders(".env", "")
 
   root_secrets = { for pair in [
     for line in split("\n", fileexists(local.root_env_path) ? file(local.root_env_path) : "") :
@@ -28,19 +28,12 @@ locals {
 
   secrets = local.root_secrets
 
-  # Bucket-name secrets: any .env key prefixed BUCKET_NAME_ is exposed as a
-  # local named by stripping the prefix and appending _bucket_name, e.g.
-  # BUCKET_NAME_ROLODEX_EMAIL -> local.rolodex_email_bucket_name. See
-  # docs/adr/0006-automatic-bucket-name-locals.md.
-  bucket_name_secrets = {
-    for k, v in local.secrets : "${lower(trimprefix(k, "BUCKET_NAME_"))}_bucket_name" => get_env(k, v)
-    if startswith(k, "BUCKET_NAME_")
-  }
-
-  # Local filesystem path to the pigeon-tf modules checkout (see
-  # docs/adr/0002-pigeon-tf-scaffold.md). Override via PIGEON_TF_PATH;
-  # default assumes pigeon-tf is cloned as a sibling directory to this repo.
-  pigeon_tf_root = get_env("PIGEON_TF_PATH", "${dirname(get_repo_root())}/pigeon-tf")
+  # No BUCKET_NAME_*/CLOUDFLARE_* keys for this account yet — when this
+  # domain needs Cloudflare zone IDs or named buckets, add a
+  # generate "cloudflare_ids"/"bucket_names" block here following
+  # pigeon.dev/root.hcl's pattern (see docs/adr/0004, 0006, 0007). Not
+  # shared via common.hcl: those blocks depend on local.secrets, which is
+  # defined per-account in this same file.
 }
 
 generate "env_ancestors" {
@@ -49,39 +42,8 @@ generate "env_ancestors" {
   contents = join("\n\n", [
     for p in local.env_ancestor_paths :
     file(p)
-    if fileexists(p) && abspath(p) != abspath("${get_repo_root()}/env.tf")
+    if fileexists(p) && abspath(p) != abspath(find_in_parent_folders("env.tf"))
   ])
-}
-
-generate "pigeon_tf" {
-  path      = "pigeon_tf_generated.tf"
-  if_exists = "overwrite"
-  contents  = <<EOF
-locals {
-  pigeon_tf_root = "${local.pigeon_tf_root}"
-}
-EOF
-}
-
-generate "cloudflare_ids" {
-  path      = "cloudflare_ids_generated.tf"
-  if_exists = "overwrite"
-  contents  = <<EOF
-locals {
-  cloudflare_account_id         = "${get_env("CLOUDFLARE_ACCOUNT_ID", lookup(local.secrets, "CLOUDFLARE_ACCOUNT_ID", ""))}"
-  cloudflare_pigeon_dev_zone_id = "${get_env("CLOUDFLARE_PIGEON_DEV_ZONE_ID", lookup(local.secrets, "CLOUDFLARE_PIGEON_DEV_ZONE_ID", ""))}"
-}
-EOF
-}
-
-generate "bucket_names" {
-  path      = "bucket_names_generated.tf"
-  if_exists = "overwrite"
-  contents  = <<EOF
-locals {
-${join("\n", [for k, v in local.bucket_name_secrets : "  ${k} = \"${v}\""])}
-}
-EOF
 }
 
 generate "provider" {
@@ -122,9 +84,9 @@ remote_state {
     endpoint = "https://tor1.digitaloceanspaces.com"
     region   = "tor1"
     # The state bucket, Spaces access key, and Spaces secret key all come
-    # from the root .env, same as the provider block above.
+    # from this root directory's own .env, same as the provider block above.
     bucket                      = lookup(local.secrets, "DIGITALOCEAN_TERRAFORM_STATE_BUCKET", "")
-    key                         = "${path_relative_to_include()}/terraform.tfstate"
+    key                         = "noisypigeon.com/${path_relative_to_include()}/terraform.tfstate"
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
