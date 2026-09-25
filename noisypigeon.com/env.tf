@@ -7,4 +7,5 @@ locals {
 
   # Digital Ocean Projects
   management_project = "Management"
+  data_project       = "Data"
 }
