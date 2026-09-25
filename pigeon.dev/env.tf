@@ -8,4 +8,5 @@ locals {
   # Digital Ocean Projects
   management_project = "Management"
   rolodex_project    = "Rolodex"
+  cli_project        = "CLI"
 }
