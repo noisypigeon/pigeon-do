@@ -1,9 +1,10 @@
 locals {
   # Secrets: read from this provider's own ".env" file (scaleway/.env),
   # found the same way every leaf finds this root.hcl itself (nearest
-  # ancestor). Backend credentials (DIGITALOCEAN_SPACES_*/TERRAFORM_STATE_BUCKET)
-  # are duplicated here from digitalocean/.env, since all three providers
-  # share the same state bucket — see docs/adr/0009-per-provider-root-hcl.md.
+  # ancestor). Backend credentials (SCALEWAY_ACCESS_KEY/SCALEWAY_SECRET_KEY)
+  # are the same ones used by the provider block below — scaleway/* has its
+  # own dedicated state bucket, not the digitalocean/cloudflare shared one —
+  # see docs/adr/0010-scaleway-remote-state.md.
   root_env_path = find_in_parent_folders(".env", "")
 
   root_secrets = { for pair in [
@@ -33,29 +34,44 @@ provider "scaleway" {
   access_key      = "${get_env("SCALEWAY_ACCESS_KEY", lookup(local.secrets, "SCALEWAY_ACCESS_KEY", ""))}"
   secret_key      = "${get_env("SCALEWAY_SECRET_KEY", lookup(local.secrets, "SCALEWAY_SECRET_KEY", ""))}"
   organization_id = "${get_env("SCALEWAY_ORGANIZATION_ID", lookup(local.secrets, "SCALEWAY_ORGANIZATION_ID", ""))}"
+  zone   = "fr-par-1"
+  region = "fr-par"
 }
 EOF
 }
 
-# Configure backend to use the shared Spaces bucket (same one
-# digitalocean/root.hcl uses). Not actually used by the current Scaleway
-# leaf yet — it keeps a local backend override in its own terragrunt.hcl —
-# but future Scaleway leaves can use this directly.
+generate "scaleway_ids" {
+  path      = "scaleway_ids_generated.tf"
+  if_exists = "overwrite"
+  contents  = <<EOF
+locals {
+  scaleway_organization_id            = "${get_env("SCALEWAY_ORGANIZATION_ID", lookup(local.secrets, "SCALEWAY_ORGANIZATION_ID", ""))}"
+  scaleway_project_id_noisypigeon_com = "${get_env("SCALEWAY_PROJECT_ID_NOISYPIGEON_COM", lookup(local.secrets, "SCALEWAY_PROJECT_ID_NOISYPIGEON_COM", ""))}"
+  scaleway_project_id_pigeon_dev      = "${get_env("SCALEWAY_PROJECT_ID_PIGEON_DEV", lookup(local.secrets, "SCALEWAY_PROJECT_ID_PIGEON_DEV", ""))}"
+}
+EOF
+}
+
+# Configure backend to use Scaleway's own Object Storage bucket, not the
+# digitalocean/cloudflare shared Spaces bucket — see
+# docs/adr/0010-scaleway-remote-state.md.
 remote_state {
   backend = "s3"
 
   config = {
-    endpoint                    = "https://tor1.digitaloceanspaces.com"
-    region                      = "tor1"
-    bucket                      = lookup(local.secrets, "DIGITALOCEAN_TERRAFORM_STATE_BUCKET", "")
+    endpoints = {
+      s3 = "https://s3.fr-par.scw.cloud"
+    }
+    region                      = "fr-par"
+    bucket                      = lookup(local.secrets, "SCALEWAY_TERRAFORM_STATE_BUCKET_NAME", "")
     key                         = "scaleway/${path_relative_to_include()}/terraform.tfstate"
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
     skip_requesting_account_id  = true
 
-    access_key = get_env("DIGITALOCEAN_SPACES_ACCESS_ID", lookup(local.secrets, "DIGITALOCEAN_SPACES_ACCESS_ID", ""))
-    secret_key = get_env("DIGITALOCEAN_SPACES_SECRET_KEY", lookup(local.secrets, "DIGITALOCEAN_SPACES_SECRET_KEY", ""))
+    access_key = get_env("SCALEWAY_ACCESS_KEY", lookup(local.secrets, "SCALEWAY_ACCESS_KEY", ""))
+    secret_key = get_env("SCALEWAY_SECRET_KEY", lookup(local.secrets, "SCALEWAY_SECRET_KEY", ""))
   }
 
   generate = {
