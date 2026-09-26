@@ -16,12 +16,11 @@ locals {
 
   secrets = local.root_secrets
 
-  # Bucket-name secrets: any .env key prefixed BUCKET_NAME_ is exposed as a
-  # local named by stripping the prefix and appending _bucket_name. See
-  # docs/adr/0006-automatic-bucket-name-locals.md.
+  # Bucket-name secrets: any .env key suffixed _BUCKET_NAME is exposed as a
+  # local named. See docs/adr/0006-automatic-bucket-name-locals.md.
   bucket_name_secrets = {
-    for k, v in local.secrets : "${lower(trimprefix(k, "BUCKET_NAME_"))}_bucket_name" => get_env(k, v)
-    if startswith(k, "BUCKET_NAME_")
+    for k, v in local.secrets : "${lower(k)}" => get_env(k, v)
+    if endswith(k, "_BUCKET_NAME")
   }
 }
 

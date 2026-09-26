@@ -3,5 +3,5 @@ module "terraform_state" {
   namespace = "noisypigeon-com"
   name      = "terraform-state"
   project   = local.management_project
-  region    = local.primary_region
+  region    = local.tor1_region
 }

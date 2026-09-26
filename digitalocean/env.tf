@@ -6,10 +6,8 @@ locals {
 
   # Digital Ocean Regions
   tor1_region = "tor1"
-  sfo3_region = "sfo3"
 
   # Digital Ocean Projects
   management_project  = "Management"
   data_project        = "Data"
-  data_import_project = "Data Import"
 }
