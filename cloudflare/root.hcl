@@ -1,11 +1,10 @@
 locals {
-  # Secrets: read from this provider's own ".env" file (cloudflare/.env),
-  # found the same way every leaf finds this root.hcl itself (nearest
-  # ancestor). Backend credentials (DIGITALOCEAN_SPACES_*/TERRAFORM_STATE_BUCKET)
-  # are duplicated here from digitalocean/.env, since all three providers
-  # share the same state bucket — see docs/adr/0009-per-provider-root-hcl.md.
-  # This is only for noisypigeon.com's Cloudflare leaves — pigeon.dev's
-  # Cloudflare leaves are unaffected, they still use pigeon.dev.hcl.
+  # Secrets: read from the shared repo-root ".env" file, found by walking up
+  # from this leaf's directory — see docs/adr/0011-shared-root-env-and-cloudflare-migration.md.
+  # This file manages BOTH noisypigeon.com's and pigeon.dev's Cloudflare
+  # leaves (two different Cloudflare accounts) — see
+  # docs/adr/0012-merge-pigeon-dev-into-cloudflare-root.md. Which account's
+  # credentials apply is resolved per-leaf below, by directory path.
   root_env_path = find_in_parent_folders(".env", "")
 
   root_secrets = { for pair in [
@@ -16,6 +15,14 @@ locals {
   ] : trimspace(pair[0]) => trimspace(pair[1]) }
 
   secrets = local.root_secrets
+
+  # pigeon.dev and noisypigeon.com are different Cloudflare accounts — a
+  # leaf under global/pigeon.dev/ gets pigeon.dev's token/account id,
+  # every other leaf gets noisypigeon.com's. See ADR-0012.
+  is_pigeon_dev_leaf = startswith(path_relative_to_include(), "global/pigeon.dev/")
+
+  cloudflare_api_token  = local.is_pigeon_dev_leaf ? get_env("CLOUDFLARE_PIGEON_DEV_TOKEN", lookup(local.secrets, "CLOUDFLARE_PIGEON_DEV_TOKEN", "")) : get_env("CLOUDFLARE_NOISYPIGEON_COM_TOKEN", lookup(local.secrets, "CLOUDFLARE_NOISYPIGEON_COM_TOKEN", ""))
+  cloudflare_account_id = local.is_pigeon_dev_leaf ? get_env("CLOUDFLARE_PIGEON_DEV_ACCOUNT_ID", lookup(local.secrets, "CLOUDFLARE_PIGEON_DEV_ACCOUNT_ID", "")) : get_env("CLOUDFLARE_NOISYPIGEON_COM_ACCOUNT_ID", lookup(local.secrets, "CLOUDFLARE_NOISYPIGEON_COM_ACCOUNT_ID", ""))
 }
 
 generate "cloudflare_ids" {
@@ -23,8 +30,9 @@ generate "cloudflare_ids" {
   if_exists = "overwrite"
   contents  = <<EOF
 locals {
-  cloudflare_account_id         = "${get_env("CLOUDFLARE_ACCOUNT_ID", lookup(local.secrets, "CLOUDFLARE_ACCOUNT_ID", ""))}"
+  cloudflare_account_id              = "${local.cloudflare_account_id}"
   cloudflare_noisypigeon_com_zone_id = "${get_env("CLOUDFLARE_NOISYPIGEON_COM_ZONE_ID", lookup(local.secrets, "CLOUDFLARE_NOISYPIGEON_COM_ZONE_ID", ""))}"
+  cloudflare_pigeon_dev_zone_id      = "${get_env("CLOUDFLARE_PIGEON_DEV_ZONE_ID", lookup(local.secrets, "CLOUDFLARE_PIGEON_DEV_ZONE_ID", ""))}"
 }
 EOF
 }
@@ -43,20 +51,22 @@ terraform {
 }
 
 provider "cloudflare" {
-  api_token         = "${get_env("CLOUDFLARE_TOKEN", lookup(local.secrets, "CLOUDFLARE_TOKEN", ""))}"
+  api_token         = "${local.cloudflare_api_token}"
 }
 EOF
 }
 
-# Configure backend to use the shared Spaces bucket (same one
-# digitalocean/root.hcl uses).
+# Configure backend to use Scaleway's own Object Storage bucket, not the
+# DigitalOcean Spaces bucket — see docs/adr/0011-shared-root-env-and-cloudflare-migration.md.
 remote_state {
   backend = "s3"
 
   config = {
-    endpoint = "https://tor1.digitaloceanspaces.com"
-    region   = "tor1"
-    bucket   = lookup(local.secrets, "DIGITALOCEAN_TERRAFORM_STATE_BUCKET", "")
+    endpoints = {
+      s3 = "https://s3.fr-par.scw.cloud"
+    }
+    region = "fr-par"
+    bucket = lookup(local.secrets, "SCALEWAY_TERRAFORM_STATE_BUCKET_NAME", "")
     # Prefixed with "cloudflare" so leaves' state keys are unchanged now
     # that this file lives inside cloudflare/ instead of the repo root —
     # see docs/adr/0009-per-provider-root-hcl.md.
@@ -66,8 +76,8 @@ remote_state {
     skip_region_validation      = true
     skip_requesting_account_id  = true
 
-    access_key = get_env("DIGITALOCEAN_SPACES_ACCESS_ID", lookup(local.secrets, "DIGITALOCEAN_SPACES_ACCESS_ID", ""))
-    secret_key = get_env("DIGITALOCEAN_SPACES_SECRET_KEY", lookup(local.secrets, "DIGITALOCEAN_SPACES_SECRET_KEY", ""))
+    access_key = get_env("SCALEWAY_ACCESS_KEY", lookup(local.secrets, "SCALEWAY_ACCESS_KEY", ""))
+    secret_key = get_env("SCALEWAY_SECRET_KEY", lookup(local.secrets, "SCALEWAY_SECRET_KEY", ""))
   }
 
   generate = {

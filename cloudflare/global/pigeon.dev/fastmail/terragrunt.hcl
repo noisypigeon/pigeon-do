@@ -2,8 +2,8 @@ include "common" {
   path = find_in_parent_folders("common.hcl")
 }
 
-include "domain" {
-  path = find_in_parent_folders("pigeon.dev.hcl")
+include "root" {
+  path = find_in_parent_folders("root.hcl")
 }
 
 terraform {
