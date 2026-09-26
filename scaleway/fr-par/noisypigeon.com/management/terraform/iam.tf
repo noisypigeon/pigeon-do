@@ -1,5 +1,5 @@
 module "terraform_deployer" {
-  source = "git::https://github.com/noisypigeon/pigeon-tf.git//scaleway/iam-policy?ref=scaleway/iam-policy/v1.1.0"
+  source = "git::https://github.com/noisypigeon/pigeon-tf.git//scaleway/iam-policy?ref=scaleway/iam-policy/v2.0.0"
   name   = "terraform-deployer"
   project_ids = [
     local.scaleway_project_id_noisypigeon_com,
@@ -11,7 +11,7 @@ module "terraform_deployer" {
     "VPCFullAccess",
   ]
   organization_id = local.scaleway_organization_id
-  org_permission_sets = [
+  organization_permission_sets = [
     "ProjectManager",
     "IAMManager",
     "IAMApplicationManager"
